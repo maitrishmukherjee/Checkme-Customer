@@ -88,8 +88,12 @@ export default function DemoPage() {
 
   // Auto-open drawer on mobile/tablet
   useEffect(() => {
-    if (!isDesktop) {
+    // Only auto-open if we're definitely on mobile/tablet
+    // isDesktop will be undefined initially, then true/false after evaluation
+    if (isDesktop === false) {
       setShowStepsDrawer(true)
+    } else if (isDesktop === true) {
+      setShowStepsDrawer(false)
     }
   }, [isDesktop])
 
