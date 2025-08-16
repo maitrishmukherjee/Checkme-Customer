@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import ProductCard from "../../components/product-card"
+import ProductCarousel from "../../components/product-carousel"
 import { products } from "../../lib/data"
 import { Button } from "../../components/ui/button"
 import { useSearchParams } from "next/navigation"
@@ -48,10 +49,8 @@ export default function ProductsPage() {
         )}
       </div>
 
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {filteredProducts.map((product) => (
-          <ProductCard key={product.id} product={product} />
-        ))}
+      <div>
+        <ProductCarousel products={filteredProducts} />
       </div>
     </div>
   )

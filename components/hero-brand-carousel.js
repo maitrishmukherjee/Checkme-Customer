@@ -39,7 +39,7 @@ export default function HeroBrandCarousel() {
                 <div key={brand.id} className="w-full flex-shrink-0">
                   <Link href={`/brands/${brand.id}`} className="block">
                     <div
-                      className="relative w-full min-h-[600px] flex items-center justify-center transition-all duration-300 group"
+                      className="relative w-full min-h-[300px] flex items-center justify-center transition-all duration-300 group"
                       style={{
                         backgroundImage: `url(${brand.bg})`,
                         backgroundSize: "cover",

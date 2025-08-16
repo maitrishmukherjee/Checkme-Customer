@@ -8,8 +8,10 @@ import { useCart } from "../contexts/cart-context";
 import {
   AmazonLogoIcon,
   GarageIcon,
+  InfoIcon,
   PresentationIcon,
 } from "@phosphor-icons/react";
+import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 
 export default function ProductCard({ product, showDemo = true }) {
   const { addToCart } = useCart();
@@ -35,25 +37,45 @@ export default function ProductCard({ product, showDemo = true }) {
       </Link>
 
       <CardContent className="p-4">
-        <Link href={`/products/${product.id}`}>
+        <div className="flex flex-col gap-1 items-start">
+          <img
+className="w-auto h-8 rounded-full"
+            src={product.brandLogo || "/placeholder.svg"}
+            alt={product.brandLogo || "/placeholder.svg"}
+          />
+        
+          <Link href={`/products/${product.id}`}>
           <h3 className="font-semibold text-lg mb-2 hover:text-gray-600">
-            {product.name}
+            <span className="hidden lg:block">
+              {product.name.length > 20
+                ? `${product.name.slice(0, 20)}...`
+                : product.name}
+            </span>
+
+            <span className="hidden md:block lg:hidden">
+              {product.name.length > 18
+                ? `${product.name.slice(0, 18)}...`
+                : product.name}
+            </span>
+            <span className="block md:hidden">{product.name}</span>
           </h3>
         </Link>
+        </div>
+        
         <div className="mb-3">
           <div className="flex items-baseline gap-2">
             <p className="text-xl font-bold">
               {" "}
               ₹{product.discountedPrice.toFixed(2)}
             </p>
-            <p className="text-sm text-red-500 line-through">
+            {/* <p className="text-sm text-red-500 line-through">
               {" "}
               ₹{product.price.toFixed(2)}
-            </p>
+            </p> */}
           </div>
-          <p className="text-sm font-semibold text-gray-500">
+          {/* <p className="text-sm font-semibold text-gray-500">
             Discount: {product.discountPercentage}%
-          </p>
+          </p> */}
         </div>
         <div className="flex gap-2 flex-wrap">
           <Link href={`/demo?product=${product.id}`} className="flex-1">
@@ -70,10 +92,10 @@ export default function ProductCard({ product, showDemo = true }) {
               </Button>
             </Link>
           )}
-          <Link href='#' className="flex-1">
+          <Link href={`/products/${product.id}`} className="flex-1">
             <Button className="w-full">
-              <AmazonLogoIcon size={20} className="mr-2" />
-              Buy from Amazon
+              <InfoIcon size={20} className="mr-2" />
+              More Info
             </Button>
           </Link>
         </div>

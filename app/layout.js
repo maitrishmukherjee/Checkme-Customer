@@ -11,7 +11,7 @@ const inter = Inter({ subsets: ["latin"] })
 
 export const metadata = {
   title: "CheckMe",
-  description: "Buy the most premium appliances at CheckMe"
+  description: "Buy the most premium appliances at CheckMe",
 }
 
 export default function RootLayout({ children }) {
@@ -23,8 +23,10 @@ export default function RootLayout({ children }) {
             <AlertProvider>
               <UserProvider>
                 <CartProvider>
-                  <Navigation />
-                  <main>{children}</main>
+                  <div className="max-w-6xl mx-auto">
+                    <Navigation />
+                    <main>{children}</main>
+                  </div>
                 </CartProvider>
               </UserProvider>
             </AlertProvider>

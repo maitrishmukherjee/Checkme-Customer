@@ -2,7 +2,9 @@
 
 import Image from "next/image"
 import ProductCard from "../../../components/product-card"
+import ProductCarousel from "../../../components/product-carousel"
 import { brands, productsWithBrands } from "../../../lib/data"
+import HeroBrandCarousel from "@/components/hero-brand-carousel"
 
 export default function BrandPage({ params }) {
   const brand = brands.find((b) => b.id === Number.parseInt(params.id))
@@ -16,6 +18,7 @@ export default function BrandPage({ params }) {
   return (
     <div className="container mx-auto px-4 py-8">
       {/* Brand Header */}
+      <HeroBrandCarousel/>
       <div className="bg-muted/50 rounded-lg p-8 mb-12">
         <div className="flex items-center gap-8 mb-6">
           <Image
@@ -45,10 +48,8 @@ export default function BrandPage({ params }) {
       <section>
         <h2 className="text-2xl font-bold mb-8">{brand.name} Products</h2>
         {brandProducts.length > 0 ? (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {brandProducts.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
+          <div>
+            <ProductCarousel products={brandProducts} />
           </div>
         ) : (
           <p className="text-muted-foreground text-center py-12">No products available for this brand yet.</p>
