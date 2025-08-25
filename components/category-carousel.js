@@ -46,7 +46,7 @@ export default function CategoryCarousel() {
   }, [])
 
   return (
-    <section className="py-4 bg-background">
+    <section className="py-4 bg-background max-w-6xl mx-auto">
       <div className="text-center mb-12 ">
         <h2 className="text-3xl font-bold text-foreground mb-4">Shop by Category</h2>
         <p className="text-muted-foreground text-lg">Discover our handpicked selection of categories</p>

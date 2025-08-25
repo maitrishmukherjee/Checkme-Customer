@@ -1,7 +1,6 @@
 "use client"
 
 import Image from "next/image"
-import ProductCard from "../../../components/product-card"
 import ProductCarousel from "../../../components/product-carousel"
 import { categories, productsWithCategories } from "../../../lib/data"
 

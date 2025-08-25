@@ -111,7 +111,7 @@ export default function Navigation() {
   );
 
   return (
-    <header className="border-b bg-background">
+    <header className="border-b bg-background max-w-6xl mx-auto">
       <div className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
           <div className="flex flex-row gap-10 items-center">

@@ -7,9 +7,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Check, ChevronLeft, ChevronRight } from "lucide-react";
 import { HouseIcon } from "@phosphor-icons/react";
 import { format } from "date-fns";
+import DateSelection from "./DateSelection";
+import TimeSelection from "./TimeSelection";
 
 export default function StepContent({
   step,
+  demoType,
   isAuthenticated,
   mobileNumber,
   setMobileNumber,
@@ -28,13 +31,25 @@ export default function StepContent({
   selectedTimeSlot,
   setSelectedTimeSlot,
   timeSlots,
+  availableSlots,
+  isLoadingSlots,
+  fetchAvailableSlots,
   canContinue,
   handleContinue,
 }) {
+  // Handle date change for virtual demo
+  const handleDateChange = (date) => {
+    setSelectedDate(date)
+    setSelectedTimeSlot("") // Reset time slot when date changes
+    if (demoType === 'virtual') {
+      fetchAvailableSlots(date)
+    }
+  }
+
   return (
     <div className="space-y-6 pb-5">
-      {/* Step 1: Address Selection */}
-      {step === "address" && (
+      {/* Step 1: Address Selection (only for physical demo) */}
+      {step === "address" && demoType !== 'virtual' && (
         <div className="space-y-6">
           {!isAuthenticated ? (
             <div className="space-y-4">
@@ -150,38 +165,29 @@ export default function StepContent({
       {/* Step 2: Date and Time Selection */}
       {step === "slots" && (
         <div className="space-y-6">
-          <div className="grid md:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Date Selection */}
-            <div>
+            <div className="w-full">
               <Label className="text-base font-medium mb-4 block">Select Date</Label>
-              <Input
-                type="date"
-                value={selectedDate ? format(selectedDate, "yyyy-MM-dd") : ""}
-                onChange={(e) => {
-                  const date = new Date(e.target.value);
-                  setSelectedDate(date);
-                }}
-                min={format(new Date(), "yyyy-MM-dd")}
-                className="w-full"
+              <DateSelection 
+                selectedDate={selectedDate}
+                onDateChange={handleDateChange}
+                demoType={demoType}
               />
-              <p className="text-sm text-gray-500 mt-2">Available dates: Next 7 days</p>
             </div>
 
             {/* Time Slot Selection */}
-            <div>
+            <div className="w-full">
               <Label className="text-base font-medium mb-4 block">Select Time Slot</Label>
-              <Select value={selectedTimeSlot} onValueChange={setSelectedTimeSlot}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose a time slot" />
-                </SelectTrigger>
-                <SelectContent>
-                  {timeSlots.map((slot) => (
-                    <SelectItem key={slot} value={slot}>
-                      {slot}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <TimeSelection
+                demoType={demoType}
+                selectedDate={selectedDate}
+                selectedTimeSlot={selectedTimeSlot}
+                setSelectedTimeSlot={setSelectedTimeSlot}
+                availableSlots={availableSlots}
+                isLoadingSlots={isLoadingSlots}
+                timeSlots={timeSlots}
+              />
             </div>
           </div>
         </div>
@@ -190,17 +196,97 @@ export default function StepContent({
       {/* Continue Button */}
       {step !== "confirmation" && (
         <div className="flex justify-between items-center pt-0 lg:pt-6">
-          {step !== "address" && (
+          {step !== "address" && demoType !== 'virtual' && (
             <Button onClick={() => setStep(step === "slots" ? "address" : "slots")}>
               <ChevronLeft className="w-4 h-4 mr-2" />
               Back
             </Button>
           )}
-          {step === "address" && <div></div>}
+          {step === "address" && demoType !== 'virtual' && <div></div>}
           <Button onClick={handleContinue} disabled={!canContinue()}>
             Continue
             <ChevronRight className="w-4 h-4 ml-2" />
           </Button>
+        </div>
+      )}
+
+      {/* Confirmation Step */}
+      {step === "confirmation" && (
+        <div className="space-y-6">
+          <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                <Check className="w-5 h-5 text-green-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-green-900">Demo Booking Confirmation</h3>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="grid md:grid-cols-1 gap-6">
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-2">Demo Details</h4>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Demo Type:</span>
+                      <span className="font-medium">
+                        {demoType === 'virtual' ? 'Virtual Demo' : 'Physical Demo'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Date:</span>
+                      <span className="font-medium">
+                        {selectedDate ? format(selectedDate, "EEEE, MMMM d, yyyy") : "Not selected"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Time:</span>
+                      <span className="font-medium">
+                        {demoType === 'virtual' 
+                          ? availableSlots.find(slot => slot.time_slot_id === selectedTimeSlot)?.time || "Not selected"
+                          : timeSlots.find((_, index) => `physical_${index}` === selectedTimeSlot) || "Not selected"
+                        }
+                      </span>
+                    </div>
+                    {demoType !== 'virtual' && selectedAddress && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Address:</span>
+                        <span className="font-medium text-right max-w-xs">
+                          {selectedAddress.apartment}, {selectedAddress.street_address}, {selectedAddress.district}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-2">Product Details</h4>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Product:</span>
+                      <span className="font-medium">Demo Product</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Status:</span>
+                      <span className="font-medium text-green-600">Confirmed</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="pt-4 border-t border-green-200">
+                <p className="text-sm text-green-700">
+                  Your demo has been successfully scheduled! You will receive a confirmation email and SMS shortly.
+                  {demoType === 'virtual' && ' A meeting link will be shared before the scheduled time.'}
+                </p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex justify-center">
+            <Button size="lg" className="px-8">
+              Book Another Demo
+            </Button>
+          </div>
         </div>
       )}
     </div>

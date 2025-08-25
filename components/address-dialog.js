@@ -11,12 +11,30 @@ import { addNewAddress, getStateDistrict, updateAddress } from "@/lib/api";
 import { Checkbox } from "@/components/ui/checkbox"; // Assuming you have a Checkbox component
 import { v4 as uuidv4 } from 'uuid'; // Import uuid to generate a random id
 
+// Add CSS for Google Maps autocomplete styling
+const autocompleteStyles = `
+  .pac-container {
+    border-radius: 8px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    border: 1px solid #e5e7eb;
+    font-family: inherit;
+  }
+  .pac-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid #f3f4f6;
+  }
+  .pac-item:hover {
+    background-color: #f9fafb;
+  }
+  .pac-item-selected {
+    background-color: #dbeafe;
+  }
+`;
+
 // A helper component to render the map and its controls
 const MapSection = ({
   mapRef,
-  searchQuery,
-  setSearchQuery,
-  handleSearch,
   getCurrentLocation,
   mapError,
   isMapLoaded,
@@ -24,22 +42,23 @@ const MapSection = ({
   apiKey,
   setApiKey,
   handleApiKeySubmit,
+  searchInputRef,
 }) => (
   <div className="relative h-[400px] w-full">
     <div className="absolute top-4 left-4 right-4 z-10 flex gap-2">
       <div className="flex-1 relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-        <Input
+        <input
+          ref={searchInputRef}
           placeholder="Search for area, street name..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          onKeyPress={(e) => e.key === "Enter" && handleSearch()}
-          className="pl-10 bg-white shadow-md"
+          className="w-full px-10 py-2 border border-gray-300 rounded-md shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          style={{
+            fontSize: '14px',
+            lineHeight: '1.5',
+            backgroundColor: 'white',
+          }}
         />
       </div>
-      <Button onClick={handleSearch} size="sm" className="shadow-md">
-        Search
-      </Button>
       <Button onClick={getCurrentLocation} size="sm" variant="outline" className="bg-white shadow-md">
         <Crosshair className="w-4 h-4" />
       </Button>
@@ -98,7 +117,6 @@ export default function AddressDialog({ open, onOpenChange, onAddressSelect, edi
 
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [isLoadingAddress, setIsLoadingAddress] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
   const [mapError, setMapError] = useState(null);
   const [apiKey, setApiKey] = useState("");
   const [showApiKeyInput, setShowApiKeyInput] = useState(false);
@@ -106,9 +124,21 @@ export default function AddressDialog({ open, onOpenChange, onAddressSelect, edi
   const mapInstanceRef = useRef(null);
   const markerRef = useRef(null);
   const scriptLoadedRef = useRef(false);
+  const searchInputRef = useRef(null);
 
   // Use a state to control the current step: 'map' or 'form'
   const [step, setStep] = useState("map");
+
+  // Inject autocomplete styles
+  useEffect(() => {
+    const styleElement = document.createElement('style');
+    styleElement.textContent = autocompleteStyles;
+    document.head.appendChild(styleElement);
+
+    return () => {
+      document.head.removeChild(styleElement);
+    };
+  }, []);
 
   // This is the missing handleChange function
   const handleChange = (field, value) => {
@@ -120,13 +150,13 @@ export default function AddressDialog({ open, onOpenChange, onAddressSelect, edi
     if (editingAddress) {
       setFormData({
         name: editingAddress.name || "",
-        mobileNumber: editingAddress.mobileNumber || "",
-        houseNumber: editingAddress.houseNumber || "",
+        mobileNumber: editingAddress.mobile_no || editingAddress.mobileNumber || "",
+        houseNumber: editingAddress.apartment || editingAddress.houseNumber || "",
         landmark: editingAddress.landmark || "",
-        addressType: editingAddress.addressType || "Home",
-        fullAddress: editingAddress.fullAddress || "",
-        latitude: editingAddress.latitude || editingAddress.coordinates?.latitude || 28.6139,
-        longitude: editingAddress.longitude || editingAddress.coordinates?.longitude || 77.209,
+        addressType: editingAddress.address_type || editingAddress.addressType || "Home",
+        fullAddress: editingAddress.street_address || editingAddress.fullAddress || "",
+        latitude: editingAddress.address_lat || editingAddress.latitude || editingAddress.coordinates?.latitude || 28.6139,
+        longitude: editingAddress.address_lng || editingAddress.longitude || editingAddress.coordinates?.longitude || 77.209,
         pincode: editingAddress.pincode || "",
         state: editingAddress.state || "",
         country: editingAddress.country || "",
@@ -165,7 +195,44 @@ export default function AddressDialog({ open, onOpenChange, onAddressSelect, edi
   useEffect(() => {
     if (!open) {
       setStep("map"); // Reset to map step when dialog closes
+      
+      // Reset form data when dialog closes (unless editing)
+      if (!editingAddress) {
+        setFormData({
+          name: "",
+          mobileNumber: "",
+          houseNumber: "",
+          landmark: "",
+          addressType: "Home",
+          fullAddress: "",
+          latitude: 28.6139,
+          longitude: 77.209,
+          pincode: "",
+          state: "",
+          country: "",
+          district: "",
+          isDefault: false,
+        });
+        
+        // Reset map state
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.setCenter({ lat: 28.6139, lng: 77.209 });
+          mapInstanceRef.current.setZoom(20);
+        }
+        if (markerRef.current) {
+          markerRef.current.setPosition({ lat: 28.6139, lng: 77.209 });
+        }
+      }
       return;
+    }
+
+    // If editing an address, ensure we have the correct coordinates
+    if (editingAddress && editingAddress.address_lat && editingAddress.address_lng) {
+      setFormData(prev => ({
+        ...prev,
+        latitude: editingAddress.address_lat,
+        longitude: editingAddress.address_lng,
+      }));
     }
 
     // Existing Google Maps script loading logic remains the same
@@ -244,7 +311,36 @@ export default function AddressDialog({ open, onOpenChange, onAddressSelect, edi
     if (isMapLoaded && mapRef.current && open && !mapInstanceRef.current && step === "map") {
       initializeMap();
     }
-  }, [isMapLoaded, open, step]);
+  }, [isMapLoaded, open, step, editingAddress]);
+
+  // Ensure map is visible when step changes to map
+  useEffect(() => {
+    if (step === "map" && mapInstanceRef.current && open) {
+      // Force map to redraw when step changes to map
+      setTimeout(() => {
+        if (mapInstanceRef.current) {
+          window.google.maps.event.trigger(mapInstanceRef.current, 'resize');
+        }
+      }, 100);
+    }
+  }, [step, open]);
+
+  // Only center map on editing address coordinates when first opening (not when user changes location)
+  useEffect(() => {
+    if (editingAddress && mapInstanceRef.current && markerRef.current && 
+        editingAddress.address_lat && editingAddress.address_lng && step === "map") {
+      // Only do this when first opening the map, not when user has moved the pin
+      const lat = editingAddress.address_lat;
+      const lng = editingAddress.address_lng;
+      
+      // Center the map on the editing address
+      mapInstanceRef.current.setCenter({ lat, lng });
+      mapInstanceRef.current.setZoom(20);
+      
+      // Update marker position
+      markerRef.current.setPosition({ lat, lng });
+    }
+  }, [editingAddress?.address_lat, editingAddress?.address_lng, step]);
 
   const initializeMap = () => {
     if (!mapRef.current || !window.google || !window.google.maps) {
@@ -252,17 +348,31 @@ export default function AddressDialog({ open, onOpenChange, onAddressSelect, edi
     }
 
     try {
+      // Use the actual coordinates from the address data
+      const centerLat = editingAddress?.address_lat || formData.latitude;
+      const centerLng = editingAddress?.address_lng || formData.longitude;
+      
       const map = new window.google.maps.Map(mapRef.current, {
-        center: { lat: formData.latitude, lng: formData.longitude },
-        zoom: 16,
-        mapTypeControl: false,
-        streetViewControl: false,
-        fullscreenControl: false,
-        styles: [{ featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] }],
+        center: { lat: centerLat, lng: centerLng },
+        zoom: 20, // Maximum zoom level for maximum street-level detail
+        mapTypeControl: false, // Disable map type control (no satellite toggle)
+        streetViewControl: false, // Disable street view control
+        fullscreenControl: false, // Disable fullscreen control
+        zoomControl: true, // Keep zoom control for user convenience
+        scaleControl: false, // Disable scale control
+        tilt: 0, // Ensure map is not tilted for better detail viewing
+        gestureHandling: 'greedy', // Better touch handling for mobile
+        styles: [
+          { featureType: "poi", elementType: "labels", stylers: [{ visibility: "on" }] }, // Show POI labels
+          { featureType: "transit", elementType: "labels", stylers: [{ visibility: "on" }] }, // Show transit labels
+          { featureType: "road", elementType: "geometry", stylers: [{ visibility: "on" }] }, // Show road geometry
+          { featureType: "landscape", elementType: "geometry", stylers: [{ visibility: "on" }] }, // Show landscape features
+          { featureType: "administrative", elementType: "geometry", stylers: [{ visibility: "on" }] }, // Show administrative boundaries
+        ],
       });
 
       const marker = new window.google.maps.Marker({
-        position: { lat: formData.latitude, lng: formData.longitude },
+        position: { lat: centerLat, lng: centerLng },
         map: map,
         draggable: true,
         icon: {
@@ -301,13 +411,56 @@ export default function AddressDialog({ open, onOpenChange, onAddressSelect, edi
         reverseGeocode(lat, lng);
       });
 
-      getCurrentLocation();
+      // If editing an address, don't call getCurrentLocation as we want to stay at the address coordinates
+      if (!editingAddress) {
+        getCurrentLocation();
+      } else {
+        // Ensure the map is properly centered on the editing address with a slight delay to ensure proper rendering
+        setTimeout(() => {
+          map.setCenter({ lat: centerLat, lng: centerLng });
+          map.setZoom(20);
+        }, 100);
+      }
+
+      // Initialize Google Maps Autocomplete for search input
+      if (searchInputRef.current && window.google.maps.places) {
+        const autocomplete = new window.google.maps.places.Autocomplete(searchInputRef.current, {
+          types: ['geocode', 'establishment'],
+          componentRestrictions: { country: 'IN' }, // Restrict to India
+        });
+
+        autocomplete.addListener('place_changed', () => {
+          const place = autocomplete.getPlace();
+          if (place.geometry && place.geometry.location) {
+            const lat = place.geometry.location.lat();
+            const lng = place.geometry.location.lng();
+            
+            // Update map and marker
+            map.setCenter({ lat, lng });
+            map.setZoom(20);
+            marker.setPosition({ lat, lng });
+            
+            // Update form data
+            setFormData(prev => ({
+              ...prev,
+              latitude: lat,
+              longitude: lng,
+              fullAddress: place.formatted_address || '',
+            }));
+
+            // Get additional details like pincode
+            reverseGeocode(lat, lng);
+          }
+        });
+      }
     } catch (error) {
       setMapError("Failed to initialize map");
     }
   };
 
   const getCurrentLocation = async () => {
+    // Always get current location when crosshair button is clicked, regardless of editing mode
+
     try {
       const savedLocation = localStorage.getItem("userLocation");
       if (savedLocation) {
@@ -388,34 +541,41 @@ export default function AddressDialog({ open, onOpenChange, onAddressSelect, edi
     }
   };
 
-  const handleSearch = () => {
-    if (!window.google || !window.google.maps || !searchQuery.trim()) return;
-    const service = new window.google.maps.places.PlacesService(mapInstanceRef.current);
-    const request = { query: searchQuery, fields: ["name", "geometry", "formatted_address"] };
-    service.textSearch(request, (results, status) => {
-      if (status === window.google.maps.places.PlacesServiceStatus.OK && results[0]) {
-        const place = results[0];
-        const lat = place.geometry.location.lat();
-        const lng = place.geometry.location.lng();
-        if (mapInstanceRef.current && markerRef.current) {
-          const newPosition = { lat, lng };
-          mapInstanceRef.current.setCenter(newPosition);
-          markerRef.current.setPosition(newPosition);
-          setFormData((prev) => ({
-            ...prev,
-            latitude: lat,
-            longitude: lng,
-            fullAddress: place.formatted_address || searchQuery,
-          }));
-        }
-      }
-    });
-  };
+
 
   const handleProceedToForm = () => {
     if (formData.fullAddress) {
       setStep("form");
     }
+  };
+
+  const handleGoBackToMap = () => {
+    setStep("map");
+    // Force map to reload when going back
+    setTimeout(() => {
+      if (mapInstanceRef.current) {
+        // Force the map to recalculate its size and redraw
+        window.google.maps.event.trigger(mapInstanceRef.current, 'resize');
+        
+        // Re-center the map on the current location (use form data, not original editing address)
+        const currentLat = formData.latitude;
+        const currentLng = formData.longitude;
+        mapInstanceRef.current.setCenter({ lat: currentLat, lng: currentLng });
+        mapInstanceRef.current.setZoom(20);
+        
+        // Ensure marker is visible at current location
+        if (markerRef.current) {
+          markerRef.current.setPosition({ lat: currentLat, lng: currentLng });
+        }
+        
+        // Force a complete redraw by changing zoom slightly
+        const currentZoom = mapInstanceRef.current.getZoom();
+        mapInstanceRef.current.setZoom(currentZoom + 0.001);
+        setTimeout(() => {
+          mapInstanceRef.current.setZoom(currentZoom);
+        }, 50);
+      }
+    }, 150);
   };
 
 const handleSubmit = async (e) => {
@@ -434,7 +594,7 @@ const handleSubmit = async (e) => {
       address_lat: formData.latitude,
       address_map: formData.fullAddress, // Using fullAddress for map field
       name: formData.name,
-      phone: formData.mobileNumber,
+      phone: formData.mobileNumber, // Fixed: using 'phone' field name as per API
       is_default: formData.isDefault, // Include is_default field
     };
 
@@ -502,9 +662,6 @@ const handleSubmit = async (e) => {
 
             <MapSection
               mapRef={mapRef}
-              searchQuery={searchQuery}
-              setSearchQuery={setSearchQuery}
-              handleSearch={handleSearch}
               getCurrentLocation={getCurrentLocation}
               mapError={mapError}
               isMapLoaded={isMapLoaded}
@@ -512,6 +669,7 @@ const handleSubmit = async (e) => {
               apiKey={apiKey}
               setApiKey={setApiKey}
               handleApiKeySubmit={handleApiKeySubmit}
+              searchInputRef={searchInputRef}
             />
 
             <DialogFooter className="pt-4">
@@ -653,7 +811,7 @@ const handleSubmit = async (e) => {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setStep("map")}
+                  onClick={handleGoBackToMap}
                 >
                   Go Back to Map
                 </Button>

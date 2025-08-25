@@ -12,7 +12,7 @@ const userReducer = (state, action) => {
         ...state,
         user: action.payload,
         isAuthenticated: true,
-        accessToken: localStorage.getItem("access_token") || "",
+        accessToken: localStorage.getItem("access_token"),
       }
     case "LOGOUT":
       return {
@@ -20,13 +20,14 @@ const userReducer = (state, action) => {
         user: null,
         isAuthenticated: false,
         accessToken: "",
+        
       }
     case "LOAD_USER":
       return {
         ...state,
         user: action.payload,
         isAuthenticated: !!action.payload,
-        accessToken: localStorage.getItem("access_token") || "",
+        accessToken: localStorage.getItem("access_token") ,
       }
     default:
       return state
@@ -48,6 +49,7 @@ export function UserProvider({ children }) {
       dispatch({ type: "LOAD_USER", payload: JSON.parse(savedUser) })
     }
     if (savedToken) {
+      
       // token will be attached by axios interceptor
     }
   }, [])
@@ -69,6 +71,7 @@ export function UserProvider({ children }) {
     if (window.confirm("Are you sure you want to logout?")) {
       dispatch({ type: "LOGOUT" })
       showAlert("You have been logged out successfully", "info")
+      localStorage.clear()
     }
   }
 

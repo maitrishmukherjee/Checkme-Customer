@@ -11,7 +11,6 @@ import {
   InfoIcon,
   PresentationIcon,
 } from "@phosphor-icons/react";
-import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 
 export default function ProductCard({ product, showDemo = true }) {
   const { addToCart } = useCart();

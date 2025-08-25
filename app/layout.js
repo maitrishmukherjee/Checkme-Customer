@@ -1,3 +1,4 @@
+
 import { Inter } from "next/font/google"
 import "./globals.css"
 import { CartProvider } from "../contexts/cart-context"
@@ -6,6 +7,7 @@ import { ThemeProvider } from "../contexts/theme-context"
 import { GoogleOAuthProvider } from "@react-oauth/google"
 import { AlertProvider } from "../contexts/alert-context"
 import Navigation from "../components/navigation"
+import Footer from "../components/footer"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -23,9 +25,12 @@ export default function RootLayout({ children }) {
             <AlertProvider>
               <UserProvider>
                 <CartProvider>
-                  <div className="max-w-6xl mx-auto">
+                  <div>
                     <Navigation />
                     <main>{children}</main>
+                  </div>
+                  <div className="mt-16">
+                    <Footer />
                   </div>
                 </CartProvider>
               </UserProvider>
