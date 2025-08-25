@@ -4,27 +4,74 @@ import Image from "next/image"
 import Link from "next/link"
 import { Button } from "../../../components/ui/button"
 import ProductCarousel from "../../../components/product-carousel"
-import { products } from "../../../lib/data"
 import { useCart } from "../../../contexts/cart-context"
 import { AmazonLogoIcon, GarageIcon, PresentationIcon } from "@phosphor-icons/react"
 import React, { useEffect, useState } from "react"
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "../../../components/ui/carousel"
+import { getProductInfo } from "../../../lib/api"
+import { products as fallbackProducts } from "../../../lib/data"
 
 export default function ProductPage({ params }) {
+  // ✅ All hooks are called at the very top, unconditionally.
   const { addToCart } = useCart()
-const unwrappedParams = React.use(params);
-  
-  const product = products.find((p) => p.id === Number.parseInt(unwrappedParams.id));
-  if (!product) {
-    return <div>Product not found</div>
-  }
-
-  const relatedProducts = products.filter((p) => p.category === product.category && p.id !== product.id).slice(0, 4)
-
-  const galleryImages = Array.from({ length: 20 }, () => product.image)
-  const [selectedImage, setSelectedImage] = useState(product.image)
-
+  const productId = Number.parseInt(params?.id)
+  const [product, setProduct] = useState(null)
+  const [relatedProducts, setRelatedProducts] = useState([])
+  const [galleryImages, setGalleryImages] = useState([])
+  const [selectedImage, setSelectedImage] = useState("")
   const [thumbApi, setThumbApi] = useState(null)
+  const [isZooming, setIsZooming] = useState(false)
+  const [zoomState, setZoomState] = useState({ x: 0, y: 0, w: 0, h: 0 })
+
+  useEffect(() => {
+    if (!productId) return
+    let isMounted = true
+    ;(async () => {
+      try {
+        const { data } = await getProductInfo({ productid: productId })
+        // Map API response to UI shape
+        const mapped = (() => {
+          const raw = data
+          const id = raw?.id ?? raw?.product_id ?? productId
+          const name = raw?.name ?? raw?.product_name ?? raw?.title ?? ""
+          const image = raw?.image ?? raw?.image_url ?? raw?.thumbnail ?? "/placeholder.svg"
+          const brandLogo = raw?.brandLogo ?? raw?.brand_logo ?? ""
+          const price = Number(raw?.price ?? raw?.mrp ?? raw?.discountedPrice ?? raw?.discount_price ?? 0)
+          const discountedPrice = Number(
+            raw?.discountedPrice ?? raw?.discount_price ?? raw?.price ?? 0,
+          )
+          const description = raw?.description ?? ""
+          const images = Array.isArray(raw?.images) && raw.images.length ? raw.images : [image]
+          return { id, name, image, brandLogo, price, discountedPrice, description, images }
+        })()
+        if (!isMounted) return
+        setProduct(mapped)
+        setGalleryImages(mapped.images)
+        setSelectedImage(mapped.images[0])
+
+        // naive related products from fallback by name/category hints
+        const related = fallbackProducts
+          .filter((p) => p.id !== mapped.id)
+          .slice(0, 8)
+        setRelatedProducts(related)
+      } catch (err) {
+        // fallback to mock if API fails
+        const fallback = fallbackProducts.find((p) => p.id === productId)
+        if (fallback && isMounted) {
+          setProduct({ ...fallback, images: [fallback.image] })
+          setGalleryImages([fallback.image])
+          setSelectedImage(fallback.image)
+          setRelatedProducts(
+            fallbackProducts.filter((p) => p.id !== fallback.id).slice(0, 8),
+          )
+        }
+      }
+    })()
+    return () => {
+      isMounted = false
+    }
+  }, [productId])
+
   useEffect(() => {
     if (!thumbApi) return
     const id = setInterval(() => {
@@ -35,8 +82,11 @@ const unwrappedParams = React.use(params);
     return () => clearInterval(id)
   }, [thumbApi])
 
-  const [isZooming, setIsZooming] = useState(false)
-  const [zoomState, setZoomState] = useState({ x: 0, y: 0, w: 0, h: 0 })
+  // ✅ The conditional return must come after all hook calls.
+  if (!product) {
+    return <div className="container mx-auto px-4 py-8">Loading product...</div>
+  }
+
   const ZOOM = 2.5
 
   const handleMouseMove = (e) => {

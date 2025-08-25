@@ -15,7 +15,7 @@ export default function CategoryPage({ params }) {
   const categoryProducts = productsWithCategories.filter((product) => product.categoryId === category.id)
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-0 py-8">
       <div className="bg-muted/50 rounded-lg p-8 mb-12">
         <div className="flex items-center gap-8 mb-6">
           <Image

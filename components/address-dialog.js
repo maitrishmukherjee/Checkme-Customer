@@ -1,11 +1,15 @@
-"use client"
+"use client";
 
-import { useState, useEffect, useRef } from "react"
-import { Button } from "./ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog"
-import { Input } from "./ui/input"
-import { Label } from "./ui/label"
-import { Search, Crosshair } from "lucide-react"
+import { useState, useEffect, useRef } from "react";
+import { Button } from "./ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+import { Search, Crosshair } from "lucide-react";
+import { getPincodeFromCoordinates } from "@/lib/geocoding";
+import { addNewAddress, getStateDistrict, updateAddress } from "@/lib/api";
+import { Checkbox } from "@/components/ui/checkbox"; // Assuming you have a Checkbox component
+import { v4 as uuidv4 } from 'uuid'; // Import uuid to generate a random id
 
 // A helper component to render the map and its controls
 const MapSection = ({
@@ -78,12 +82,18 @@ const MapSection = ({
 export default function AddressDialog({ open, onOpenChange, onAddressSelect, editingAddress, title = "Select Address" }) {
   const [formData, setFormData] = useState({
     name: "",
+    mobileNumber: "",
     houseNumber: "",
     landmark: "",
     addressType: "Home",
     fullAddress: "",
     latitude: 28.6139,
     longitude: 77.209,
+    pincode: "",
+    state: "",
+    country: "",
+    district: "", // Add district field
+    isDefault: false, // Add isDefault field
   });
 
   const [isMapLoaded, setIsMapLoaded] = useState(false);
@@ -100,20 +110,57 @@ export default function AddressDialog({ open, onOpenChange, onAddressSelect, edi
   // Use a state to control the current step: 'map' or 'form'
   const [step, setStep] = useState("map");
 
+  // This is the missing handleChange function
+  const handleChange = (field, value) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
   // Initialize form data when editing
   useEffect(() => {
     if (editingAddress) {
       setFormData({
         name: editingAddress.name || "",
+        mobileNumber: editingAddress.mobileNumber || "",
         houseNumber: editingAddress.houseNumber || "",
         landmark: editingAddress.landmark || "",
         addressType: editingAddress.addressType || "Home",
         fullAddress: editingAddress.fullAddress || "",
         latitude: editingAddress.latitude || editingAddress.coordinates?.latitude || 28.6139,
         longitude: editingAddress.longitude || editingAddress.coordinates?.longitude || 77.209,
+        pincode: editingAddress.pincode || "",
+        state: editingAddress.state || "",
+        country: editingAddress.country || "",
+        district: editingAddress.district || "",
+        isDefault: editingAddress.is_default || false,
       });
     }
   }, [editingAddress]);
+
+  // Fetch state and district based on pincode
+  useEffect(() => {
+    const fetchStateDistrict = async () => {
+      if (formData.pincode) {
+        try {
+          const response = await getStateDistrict({ pincode: formData.pincode });
+          const data = response?.data?.return_data?.[0]; // Access the first object in the array
+          if (data) {
+            setFormData((prev) => ({
+              ...prev,
+              state: data.state || "",
+              country: data.country || "",
+              district: data.district || "", // Set the district from the API response
+            }));
+          } else {
+            console.error("No data found for the provided pincode.");
+          }
+        } catch (error) {
+          console.error("Failed to fetch state and district:", error);
+        }
+      }
+    };
+
+    fetchStateDistrict();
+  }, [formData.pincode]);
 
   useEffect(() => {
     if (!open) {
@@ -144,9 +191,9 @@ export default function AddressDialog({ open, onOpenChange, onAddressSelect, edi
       }
 
       scriptLoadedRef.current = true;
-      const googleMapsApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "AIzaSyBlW9lsqtBx5sIWX0I_Cwq-YWpcvXVzXCE";
+      const googleMapsApiKey = "AIzaSyBlW9lsqtBx5sIWX0I_Cwq-YWpcvXVzXCE";
 
-      if (!googleMapsApiKey || googleMapsApiKey === "YOUR_GOOGLE_MAPS_API_KEY") {
+      if (!googleMapsApiKey) {
         setMapError("Google Maps API key is required");
         setShowApiKeyInput(true);
         scriptLoadedRef.current = false;
@@ -260,7 +307,6 @@ export default function AddressDialog({ open, onOpenChange, onAddressSelect, edi
     }
   };
 
-  // ... (rest of your existing functions like getCurrentLocation, saveLocationToStorage, etc. are unchanged)
   const getCurrentLocation = async () => {
     try {
       const savedLocation = localStorage.getItem("userLocation");
@@ -270,10 +316,7 @@ export default function AddressDialog({ open, onOpenChange, onAddressSelect, edi
         if (isRecent && lat && lng) {
           updateLocationOnMap(lat, lng);
           return;
-        } 
-        // else {
-        //   localStorage.removeItem("userLocation");
-        // }
+        }
       }
     } catch (error) {}
 
@@ -327,22 +370,19 @@ export default function AddressDialog({ open, onOpenChange, onAddressSelect, edi
   };
 
   const reverseGeocode = async (lat, lng) => {
-    if (!window.google || !window.google.maps) return;
     setIsLoadingAddress(true);
-    const geocoder = new window.google.maps.Geocoder();
     try {
-      const response = await new Promise((resolve, reject) => {
-        geocoder.geocode({ location: { lat, lng } }, (results, status) => {
-          if (status === "OK") resolve(results);
-          else reject(status);
-        });
-      });
-      const results = response;
-      if (results && results[0]) {
-        const address = results[0].formatted_address;
-        setFormData((prev) => ({ ...prev, fullAddress: address, latitude: lat, longitude: lng }));
-      }
+      const { pincode, fullAddress } = await getPincodeFromCoordinates(lat, lng);
+
+      setFormData((prev) => ({
+        ...prev,
+        fullAddress,
+        latitude: lat,
+        longitude: lng,
+        pincode,
+      }));
     } catch (error) {
+      console.error("Error during reverse geocoding:", error);
     } finally {
       setIsLoadingAddress(false);
     }
@@ -378,32 +418,74 @@ export default function AddressDialog({ open, onOpenChange, onAddressSelect, edi
     }
   };
 
-  const handleSubmit = (e) => {
+const handleSubmit = async (e) => {
     e.preventDefault();
-    onAddressSelect({
-      ...formData,
-      coordinates: {
-        latitude: formData.latitude,
-        longitude: formData.longitude,
-      },
-    });
-    onOpenChange(false);
-    // Reset form data only if not editing
-    if (!editingAddress) {
-      setFormData({
-        name: "",
-        houseNumber: "",
-        landmark: "",
-        addressType: "Home",
-        fullAddress: "",
-        latitude: 28.6139,
-        longitude: 77.209,
-      });
-    }
-  };
+    console.log("Submitting form data:", formData);
+    // Map your local formData to the API schema
+    const addressData = {
+      address_type: formData.addressType,
+      apartment: formData.houseNumber,
+      street_address: formData.fullAddress,
+      pincode: formData.pincode,
+      state: formData.state,
+      country: formData.country,
+      district: formData.district, // Include district field
+      address_lng: formData.longitude,
+      address_lat: formData.latitude,
+      address_map: formData.fullAddress, // Using fullAddress for map field
+      name: formData.name,
+      phone: formData.mobileNumber,
+      is_default: formData.isDefault, // Include is_default field
+    };
 
-  const handleChange = (field, value) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+    try {
+      if (editingAddress) {
+        const dataToUpdate = {
+          ...addressData,
+          address_id: editingAddress.address_id,
+        };
+        await updateAddress(dataToUpdate);
+        console.log("Address updated successfully!");
+      } else {
+        // For adding, add a random integer ID and call the add API
+        const dataToAdd = {
+          ...addressData,
+          address_id: Date.now(), // Use a timestamp for a unique integer ID
+        };
+        await addNewAddress(dataToAdd);
+        console.log("Address added successfully!");
+      }
+
+      // After successful API call, call onAddressSelect and close the dialog
+      onAddressSelect({
+        ...formData,
+        coordinates: {
+          latitude: formData.latitude,
+          longitude: formData.longitude,
+        },
+      });
+      onOpenChange(false);
+      // Reset form data if not editing
+      if (!editingAddress) {
+        setFormData({
+          name: "",
+          mobileNumber: "",
+          houseNumber: "",
+          landmark: "",
+          addressType: "Home",
+          fullAddress: "",
+          latitude: 28.6139,
+          longitude: 77.209,
+          pincode: "",
+          state: "",
+          country: "",
+          district: "",
+          isDefault: false,
+        });
+      }
+    } catch (error) {
+      console.error("Failed to save address:", error);
+    }
   };
 
   return (
@@ -451,6 +533,32 @@ export default function AddressDialog({ open, onOpenChange, onAddressSelect, edi
 
             <form onSubmit={handleSubmit} className="space-y-4 py-4">
               <div>
+                <Label htmlFor="name" className="text-sm font-medium">
+                  Name*
+                </Label>
+                <Input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => handleChange("name", e.target.value)}
+                  placeholder="Enter your name"
+                  required
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="mobileNumber" className="text-sm font-medium">
+                  Mobile Number*
+                </Label>
+                <Input
+                  id="mobileNumber"
+                  value={formData.mobileNumber}
+                  onChange={(e) => handleChange("mobileNumber", e.target.value)}
+                  placeholder="Enter your mobile number"
+                  required
+                  className="mt-1"
+                />
+              </div>
+              <div>
                 <Label htmlFor="houseNumber" className="text-sm font-medium">
                   House/Flat Number*
                 </Label>
@@ -463,30 +571,51 @@ export default function AddressDialog({ open, onOpenChange, onAddressSelect, edi
                   className="mt-1"
                 />
               </div>
+
               <div>
-                <Label htmlFor="landmark" className="text-sm font-medium">
-                  Landmark (Optional)
+                <Label htmlFor="pincode" className="text-sm font-medium">
+                  Pincode*
                 </Label>
                 <Input
-                  id="landmark"
-                  value={formData.landmark}
-                  onChange={(e) => handleChange("landmark", e.target.value)}
-                  placeholder="Any nearby landmark"
+                  id="pincode"
+                  value={formData.pincode}
+                  onChange={(e) => handleChange("pincode", e.target.value)}
+                  placeholder="Enter pincode"
+                  required
                   className="mt-1"
                 />
               </div>
               <div>
-                <Label htmlFor="name" className="text-sm font-medium">
-                  Name*
+                <Label htmlFor="state" className="text-sm font-medium">
+                  State
                 </Label>
                 <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => handleChange("name", e.target.value)}
-                  placeholder="Enter your name"
-                  required
-                  className="mt-1"
+                  id="state"
+                  value={formData.state}
+                  disabled
+                  className="mt-1 bg-gray-100"
                 />
+              </div>
+              <div>
+                <Label htmlFor="country" className="text-sm font-medium">
+                  Country
+                </Label>
+                <Input
+                  id="country"
+                  value={formData.country}
+                  disabled
+                  className="mt-1 bg-gray-100"
+                />
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="isDefault"
+                  checked={formData.isDefault}
+                  onCheckedChange={(checked) => handleChange("isDefault", checked)}
+                />
+                <Label htmlFor="isDefault" className="text-sm font-medium">
+                  Set as default address
+                </Label>
               </div>
               <div>
                 <Label className="text-sm font-medium">Save as</Label>
@@ -530,7 +659,7 @@ export default function AddressDialog({ open, onOpenChange, onAddressSelect, edi
                 </Button>
                 <Button
                   type="submit"
-                  disabled={!formData.houseNumber || !formData.name}
+                  disabled={!formData.houseNumber || !formData.name || !formData.pincode}
                 >
                   {editingAddress ? "Update Address" : "Save Address"}
                 </Button>

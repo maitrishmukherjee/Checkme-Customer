@@ -4,19 +4,20 @@ import { useState, useEffect } from "react"
 import { useSearchParams } from "next/navigation"
 import Image from "next/image"
 import { Button } from "../../components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card"
+import { Card, CardContent } from "../../components/ui/card"
 import { Input } from "../../components/ui/input"
 import { Label } from "../../components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select"
-import { Calendar } from "../../components/ui/calendar"
 import { Check, ChevronLeft, ChevronRight } from "lucide-react"
-import { format, addDays, isBefore, startOfToday } from "date-fns"
+import { format } from "date-fns"
 import { useUser } from "../../contexts/user-context"
 import { products } from "../../lib/data"
 import AddressDialog from "../../components/address-dialog"
 import { Stepper } from "../../components/ui/stepper"
-import { GarageIcon, PresentationIcon } from "@phosphor-icons/react"
+import { GarageIcon, HouseIcon, PresentationIcon } from "@phosphor-icons/react"
 import { Drawer, DrawerContent } from "../../components/ui/drawer"
+import { addNewAddress, getAddresses, getStateDistrict, updateAddress } from "@/lib/api"
+import StepContent from "../../components/StepContent"
 
 function useMediaQuery(query) {
   const [matches, setMatches] = useState(false)
@@ -37,10 +38,7 @@ export default function DemoPage() {
   const productId = searchParams.get("product")
   const demoType = searchParams.get("type") || "virtual" // virtual or physical
   const product = productId ? products.find((p) => p.id === Number.parseInt(productId)) : null
-
-  const { user, isAuthenticated, login } = useUser()
-  const isDesktop = useMediaQuery("(min-width: 1024px)") // lg breakpoint
-  
+  const { user, isAuthenticated, login, accessToken } = useUser()  
   const [step, setStep] = useState("address") // address, slots, confirmation
   const [selectedAddress, setSelectedAddress] = useState(null)
   const [selectedDate, setSelectedDate] = useState(null)
@@ -50,6 +48,7 @@ export default function DemoPage() {
   const [showOtpInput, setShowOtpInput] = useState(false)
   const [isOtpVerified, setIsOtpVerified] = useState(false)
   const [addresses, setAddresses] = useState([])
+  const [districts, setDistricts] = useState([])
   const [showAddressDialog, setShowAddressDialog] = useState(false)
   const [editingAddress, setEditingAddress] = useState(null)
   const [showStepsDrawer, setShowStepsDrawer] = useState(false)
@@ -71,31 +70,22 @@ export default function DemoPage() {
     }
   }
 
-  // Load addresses from localStorage
   useEffect(() => {
-    const savedAddresses = localStorage.getItem("userAddresses")
-    if (savedAddresses) {
-      setAddresses(JSON.parse(savedAddresses))
+    async function fetchAddresses() {
+      if (accessToken) {
+        const data = await getAddresses(accessToken)
+        setAddresses(data.data.return_data)
+      }
     }
-  }, [])
 
-  // Save addresses to localStorage
-  useEffect(() => {
-    if (addresses.length > 0) {
-      localStorage.setItem("userAddresses", JSON.stringify(addresses))
+    async function fetchDistricts() {
+      const data = await getStateDistrict()
+      setDistricts(data)
     }
-  }, [addresses])
 
-  // Auto-open drawer on mobile/tablet
-  useEffect(() => {
-    // Only auto-open if we're definitely on mobile/tablet
-    // isDesktop will be undefined initially, then true/false after evaluation
-    if (isDesktop === false) {
-      setShowStepsDrawer(true)
-    } else if (isDesktop === true) {
-      setShowStepsDrawer(false)
-    }
-  }, [isDesktop])
+    fetchAddresses()
+    fetchDistricts()
+  }, [accessToken])
 
   const timeSlots = [
     "8:00 AM - 10:00 AM",
@@ -113,9 +103,8 @@ export default function DemoPage() {
   }
 
   const handleOtpSubmit = () => {
-    if (otp === "1111") { // Hardcoded OTP
+    if (otp === "123456") { // Hardcoded OTP
       setIsOtpVerified(true)
-      // Create or update user with mobile number
       const userData = {
         ...user,
         mobile: mobileNumber,
@@ -142,20 +131,22 @@ export default function DemoPage() {
     setShowAddressDialog(true)
   }
 
-  const handleSaveAddress = (addressData) => {
-    if (editingAddress) {
-      // Edit existing address
-      setAddresses(prev => prev.map(addr => 
-        addr.id === editingAddress.id ? { ...addressData, id: addr.id } : addr
-      ))
-    } else {
-      // Add new address
-      const newAddress = { ...addressData, id: Date.now() }
-      setAddresses(prev => [...prev, newAddress])
-    }
-    setShowAddressDialog(false)
-    setEditingAddress(null)
+const handleSaveAddress = async (addressData) => {
+  console.log('inside save address')
+  if (editingAddress) {
+    await updateAddress(editingAddress.id, addressData);
+    const updatedAddresses = await getAddresses();
+    setAddresses(updatedAddresses.return_data);
+  } else {
+    const newAddress = { ...addressData, id: Date.now() }; 
+    addNewAddress(newAddress);
+    const updatedAddresses = await getAddresses();
+    console.log(updatedAddresses?.data?.return_data)
+    setAddresses(updatedAddresses?.data?.return_data);
   }
+  setShowAddressDialog(false);
+  setEditingAddress(null);
+};
 
   const handleContinue = () => {
     if (step === "address" && selectedAddress) {
@@ -201,230 +192,6 @@ export default function DemoPage() {
       </div>
     )
   }
-
-  // Step content component to avoid duplication
-  const StepContent = () => (
-    <div className="space-y-6 pb-5">
-      {/* Step 1: Address Selection */}
-      {step === "address" && (
-        <div className="space-y-6">
-          {!isAuthenticated ? (
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="mobile">Mobile Number *</Label>
-                <div className="flex gap-2 mt-2">
-                  <Input
-                    id="mobile"
-                    type="tel"
-                    placeholder="Enter 10-digit mobile number"
-                    value={mobileNumber}
-                    onChange={(e) => setMobileNumber(e.target.value)}
-                    maxLength={10}
-                    className="flex-1"
-                  />
-                  <Button onClick={handleMobileSubmit} disabled={mobileNumber.length !== 10}>
-                    Continue
-                  </Button>
-                </div>
-              </div>
-
-              {showOtpInput && (
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="otp">Enter OTP *</Label>
-                    <div className="flex gap-2 mt-2">
-                      <Input
-                        id="otp"
-                        type="text"
-                        placeholder="Enter OTP"
-                        value={otp}
-                        onChange={(e) => setOtp(e.target.value)}
-                        maxLength={4}
-                        className="flex-1"
-                      />
-                      <Button onClick={handleOtpSubmit} disabled={otp.length !== 4}>
-                        Verify OTP
-                      </Button>
-                    </div>
-                    <p className="text-sm text-gray-500 mt-1">Use OTP: 1111</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <h3 className="text-lg font-semibold">Select Address</h3>
-                <Button onClick={handleAddAddress} variant="outline">
-                  + Add New Address
-                </Button>
-              </div>
-
-              {addresses.length > 0 ? (
-                <div className="space-y-3 max-h-64 overflow-y-auto">
-                  {addresses.map((address) => (
-                    <div
-                      key={address.houseNumber}
-                      className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                        selectedAddress?.id === address.id
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                      onClick={() => handleAddressSelect(address)}
-                    >
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="text-sm font-medium text-gray-500">{address.addressType}</span>
-                            {selectedAddress?.id === address.id && (
-                              <Check className="w-4 h-4 text-blue-500" />
-                            )}
-                          </div>
-                          <p className="font-medium">{address.name}</p>
-                          <p className="text-sm text-gray-600">{address.houseNumber}, {address.fullAddress}</p>
-                          {address.landmark && (
-                            <p className="text-sm text-gray-500">Near: {address.landmark}</p>
-                          )}
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleEditAddress(address)
-                          }}
-                        >
-                          Edit
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <p className="text-gray-500 mb-4">No addresses saved yet</p>
-                  <Button onClick={handleAddAddress}>Add Your First Address</Button>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Step 2: Date and Time Selection */}
-      {step === "slots" && (
-        <div className="space-y-6">
-          <div className="grid md:grid-cols-2 gap-8">
-            {/* Date Selection */}
-            <div>
-              <Label className="text-base font-medium mb-4 block">Select Date</Label>
-                <Input
-                  type="date"
-                  value={selectedDate ? format(selectedDate, 'yyyy-MM-dd') : ''}
-                  onChange={(e) => {
-                    const date = new Date(e.target.value)
-                    setSelectedDate(date)
-                  }}
-                  min={format(new Date(), 'yyyy-MM-dd')}
-                  className="w-full"
-                />
-              <p className="text-sm text-gray-500 mt-2">Available dates: Next 7 days</p>
-            </div>
-
-            {/* Time Slot Selection */}
-            <div>
-              <Label className="text-base font-medium mb-4 block">Select Time Slot</Label>
-              <Select value={selectedTimeSlot} onValueChange={setSelectedTimeSlot}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose a time slot" />
-                </SelectTrigger>
-                <SelectContent>
-                  {timeSlots.map((slot) => (
-                    <SelectItem key={slot} value={slot}>
-                      {slot}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Step 3: Confirmation */}
-      {step === "confirmation" && (
-        <div className="space-y-6">
-          <div className="bg-green-50 border border-green-200 rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-green-800 mb-4">Demo Booking Summary</h3>
-            <div className="space-y-3">
-              <div className="flex justify-between">
-                <span className="font-medium">Product:</span>
-                <span>{product.name}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="font-medium">Demo Type:</span>
-                <span>{demoType === 'virtual' ? 'Virtual Demo' : 'Physical Demo'}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="font-medium">Date:</span>
-                <span>{selectedDate ? format(selectedDate, 'PPP') : ''}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="font-medium">Time:</span>
-                <span>{selectedTimeSlot}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="font-medium">Address:</span>
-                <span className="text-right max-w-xs">
-                  {selectedAddress?.name}, {selectedAddress?.houseNumber}, {selectedAddress?.fullAddress}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="text-center">
-            <p className="text-gray-600 mb-4">
-              We'll send you a confirmation email and SMS with further details.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Continue Button */}
-      {step !== "confirmation" && (
-        <div className="flex justify-between items-center pt-0 lg:pt-6">
-          {step !== "address" && (
-            <Button onClick={() => setStep(step === "slots" ? "address" : "slots")}>
-              <ChevronLeft className="w-4 h-4 mr-2" />
-              Back
-            </Button>
-          )}
-          {step === "address" && <div></div>}
-          <Button onClick={handleContinue} disabled={!canContinue()}>
-            Continue
-            <ChevronRight className="w-4 h-4 ml-2" />
-          </Button>
-        </div>
-      )}
-
-      {/* Confirm Booking Button for Confirmation Step */}
-      {step === "confirmation" && (
-        <div className="flex justify-between items-center pt-0 lg:pt-6">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setStep("slots")}
-          >
-            <ChevronLeft className="w-4 h-4 mr-2" />
-            Back
-          </Button>
-          <Button className="px-8">
-            Confirm Booking
-          </Button>
-        </div>
-      )}
-    </div>
-  )
 
   return (
     <div className="container mx-auto px-4 py-0 lg:py-8">
@@ -474,7 +241,29 @@ export default function DemoPage() {
                   <div className="flex items-center gap-3 mb-4">
                     <h3 className="text-lg font-semibold text-gray-900">{getStepTitle()}</h3>
                   </div>
-                  <StepContent />
+                  <StepContent
+                    step={step}
+                    isAuthenticated={isAuthenticated}
+                    mobileNumber={mobileNumber}
+                    setMobileNumber={setMobileNumber}
+                    showOtpInput={showOtpInput}
+                    otp={otp}
+                    setOtp={setOtp}
+                    handleMobileSubmit={handleMobileSubmit}
+                    handleOtpSubmit={handleOtpSubmit}
+                    addresses={addresses}
+                    selectedAddress={selectedAddress}
+                    handleAddressSelect={handleAddressSelect}
+                    handleAddAddress={handleAddAddress}
+                    handleEditAddress={handleEditAddress}
+                    selectedDate={selectedDate}
+                    setSelectedDate={setSelectedDate}
+                    selectedTimeSlot={selectedTimeSlot}
+                    setSelectedTimeSlot={setSelectedTimeSlot}
+                    timeSlots={timeSlots}
+                    canContinue={canContinue}
+                    handleContinue={handleContinue}
+                  />
                 </div>
               </div>
 
@@ -517,7 +306,29 @@ export default function DemoPage() {
                 <div className="flex items-center pt-4 gap-3 mb-4">
                   <h3 className="text-lg font-semibold text-gray-900">{getStepTitle()}</h3>
                 </div>
-                <StepContent />
+                <StepContent
+                  step={step}
+                  isAuthenticated={isAuthenticated}
+                  mobileNumber={mobileNumber}
+                  setMobileNumber={setMobileNumber}
+                  showOtpInput={showOtpInput}
+                  otp={otp}
+                  setOtp={setOtp}
+                  handleMobileSubmit={handleMobileSubmit}
+                  handleOtpSubmit={handleOtpSubmit}
+                  addresses={addresses}
+                  selectedAddress={selectedAddress}
+                  handleAddressSelect={handleAddressSelect}
+                  handleAddAddress={handleAddAddress}
+                  handleEditAddress={handleEditAddress}
+                  selectedDate={selectedDate}
+                  setSelectedDate={setSelectedDate}
+                  selectedTimeSlot={selectedTimeSlot}
+                  setSelectedTimeSlot={setSelectedTimeSlot}
+                  timeSlots={timeSlots}
+                  canContinue={canContinue}
+                  handleContinue={handleContinue}
+                />
               </div>
             </div>
           </DrawerContent>
@@ -531,9 +342,11 @@ export default function DemoPage() {
             onAddressSelect={handleSaveAddress}
             editingAddress={editingAddress}
             title={editingAddress ? "Edit Address" : "Add New Address"}
+            districts={districts}
           />
         )}
       </div>
     </div>
   )
 }
+              

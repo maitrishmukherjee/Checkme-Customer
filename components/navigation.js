@@ -18,8 +18,9 @@ import { useTheme } from "../contexts/theme-context";
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import { popularCities } from "@/lib/data";
-import { MapPinLineIcon } from "@phosphor-icons/react";
+import { CheckIcon, MapPinLineIcon } from "@phosphor-icons/react";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
+import { getPincodeFromCoordinates } from "@/lib/geocoding";
 
 export default function Navigation() {
   const { getCartItemsCount } = useCart();
@@ -27,6 +28,7 @@ export default function Navigation() {
   const { theme, toggleTheme } = useTheme();
   const [searchQuery, setSearchQuery] = useState("");
   const [location, setLocation] = useState("");
+  const [pincode, setPincode] = useState(""); // Add state for pincode
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const cartItemsCount = getCartItemsCount();
@@ -40,8 +42,10 @@ export default function Navigation() {
     setIsLoadingLocation(true);
 
     const savedLocation = localStorage.getItem("userLocation");
-    if (savedLocation) {
+    const savedPincode = localStorage.getItem("userPincode");
+    if (savedLocation && savedPincode) {
       setLocation(savedLocation);
+      setPincode(savedPincode);
       setIsLoadingLocation(false);
       return;
     }
@@ -50,55 +54,33 @@ export default function Navigation() {
       const geoJSResponse = await fetch("https://get.geojs.io/v1/ip/geo.json");
       if (geoJSResponse.ok) {
         const geoData = await geoJSResponse.json();
-        const cityName = geoData.city || geoData.region || "Unknown Location";
-        setLocation(cityName);
-        localStorage.setItem("userLocation", cityName);
-        setIsLoadingLocation(false);
-        return;
+        const { latitude, longitude } = geoData;
+
+        const { pincode, city } = await getPincodeFromCoordinates(
+          latitude,
+          longitude
+        );
+
+        if (pincode) {
+          setLocation(city || "Unknown Location");
+          setPincode(pincode);
+          localStorage.setItem("userLocation", city);
+          localStorage.setItem("userPincode", pincode);
+        } else {
+          console.warn("Pincode could not be resolved. Using fallback values.");
+          setLocation("Unknown Location");
+          setPincode("Unknown Pincode");
+        }
+      } else {
+        console.error("GeoJS API failed to fetch location.");
+        setLocation("Location unavailable");
+        setPincode("Pincode unavailable");
       }
     } catch (error) {
-      console.log("GeoJS failed, trying browser geolocation...");
-    }
-
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          try {
-            const { latitude, longitude } = position.coords;
-            const response = await fetch(
-              `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
-            );
-
-            if (response.ok) {
-              const data = await response.json();
-              const cityName =
-                data.city ||
-                data.locality ||
-                data.principalSubdivision ||
-                "Unknown Location";
-              setLocation(cityName);
-              localStorage.setItem("userLocation", cityName);
-            } else {
-              setLocation("Location unavailable");
-            }
-          } catch (error) {
-            console.error("Reverse geocoding failed:", error);
-            setLocation("Location unavailable");
-          }
-          setIsLoadingLocation(false);
-        },
-        (error) => {
-          console.error("Geolocation failed:", error);
-          setLocation("Location unavailable");
-          setIsLoadingLocation(false);
-        },
-        {
-          timeout: 10000,
-          enableHighAccuracy: false,
-        }
-      );
-    } else {
-      setLocation("Location not supported");
+      console.error("Failed to fetch location:", error);
+      setLocation("Location unavailable");
+      setPincode("Pincode unavailable");
+    } finally {
       setIsLoadingLocation(false);
     }
   };
@@ -135,21 +117,21 @@ export default function Navigation() {
           <div className="flex flex-row gap-10 items-center">
             <Link href="/" className="text-xl font-bold">
               <Image
-                src="/checkme-web.jpeg"
+                src="/checkme-web.gif"
                 alt="checkme"
                 width={120}
                 height={120}
                 className="block lg:hidden"
               />
               <Image
-                src="/checkme-web.jpeg"
+                src="/checkme-web.gif"
                 alt="checkme"
                 width={180}
                 height={180}
                 className="hidden lg:block"
               />
             </Link>
-            
+
             <div className="flex items-center gap-2 relative">
               <MapPinLineIcon className="text-[#fd6c4d]" size={25} />
               <div className="relative">
@@ -164,7 +146,8 @@ export default function Navigation() {
                     </span>
                   ) : (
                     <span className="text-foreground">
-                      {location || "Select location"}
+                      {location || "Select location"}{" "}
+                      {pincode && `(${pincode})`}
                     </span>
                   )}
                   <ChevronDown className="w-3 h-3" />
@@ -229,8 +212,14 @@ export default function Navigation() {
             {isAuthenticated ? (
               <Link href="/profile" className="flex items-center gap-3">
                 <div className="hidden md:block text-right">
-                  <p className="text-sm font-medium">{user?.name}</p>
-                  <p className="text-xs text-muted-foreground">{user?.email}</p>
+                  <p className="text-sm font-medium flex items-center gap-1">
+                    {user?.name}
+                    
+                  </p>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    {user?.email}
+                    
+                  </p>
                 </div>
                 <Button variant="ghost" size="icon" className="relative">
                   {user?.picture ? (
@@ -291,3 +280,4 @@ export default function Navigation() {
     </header>
   );
 }
+

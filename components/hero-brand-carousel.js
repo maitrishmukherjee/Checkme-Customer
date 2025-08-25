@@ -5,25 +5,51 @@ import Link from "next/link"
 import Image from "next/image"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { Button } from "./ui/button"
-import { brands } from "../lib/data"
+import { brands as fallbackBrands } from "../lib/data"
+import { getHomepageBrands } from "../lib/api"
 
 export default function HeroBrandCarousel() {
   const [currentIndex, setCurrentIndex] = useState(0)
+  const [brandItems, setBrandItems] = useState(fallbackBrands)
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setCurrentIndex((prevIndex) => (prevIndex + 1) % brands.length)
+      setCurrentIndex((prevIndex) => (prevIndex + 1) % brandItems.length)
     }, 4000)
 
     return () => clearInterval(interval)
+  }, [brandItems.length])
+
+  useEffect(() => {
+    let isMounted = true
+    ;(async () => {
+      try {
+        const { data } = await getHomepageBrands()
+        if (isMounted && Array.isArray(data) && data.length) {
+          const mapped = data
+            .map((raw) => {
+              const id = raw?.id ?? raw?.brand_id
+              const name = raw?.name ?? raw?.brand_name
+              const bg = raw?.bg ?? raw?.background ?? raw?.banner
+              if (!id || !name || !bg) return null
+              return { id, name, bg }
+            })
+            .filter(Boolean)
+          if (mapped.length) setBrandItems(mapped)
+        }
+      } catch {}
+    })()
+    return () => {
+      isMounted = false
+    }
   }, [])
 
   const goToPrevious = () => {
-    setCurrentIndex((prevIndex) => (prevIndex - 1 + brands.length) % brands.length)
+    setCurrentIndex((prevIndex) => (prevIndex - 1 + brandItems.length) % brandItems.length)
   }
 
   const goToNext = () => {
-    setCurrentIndex((prevIndex) => (prevIndex + 1) % brands.length)
+    setCurrentIndex((prevIndex) => (prevIndex + 1) % brandItems.length)
   }
 
   return (
@@ -35,13 +61,13 @@ export default function HeroBrandCarousel() {
               className="flex transition-transform duration-700 ease-in-out"
               style={{ transform: `translateX(-${currentIndex * 100}%)` }}
             >
-              {brands.map((brand) => (
+              {brandItems.map((brand) => (
                 <div key={brand.id} className="w-full flex-shrink-0">
                   <Link href={`/brands/${brand.id}`} className="block">
                     <div
                       className="relative w-full min-h-[300px] flex items-center justify-center transition-all duration-300 group"
                       style={{
-                        backgroundImage: `url(${brand.bg})`,
+                        backgroundImage: `url(${brand.bg || brand.background || ""})`,
                         backgroundSize: "cover",
                         backgroundPosition: "center",
                       }}
@@ -81,7 +107,7 @@ export default function HeroBrandCarousel() {
 
           {/* Dots Indicator */}
           <div className="flex justify-center mt-8 space-x-3">
-            {brands.map((_, index) => (
+            {brandItems.map((_, index) => (
               <button
                 key={index}
                 className={`w-4 h-4 rounded-full transition-all duration-300 ${

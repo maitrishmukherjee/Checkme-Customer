@@ -16,7 +16,7 @@ export default function BrandPage({ params }) {
   const brandProducts = productsWithBrands.filter((product) => product.brandId === brand.id)
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto">
       {/* Brand Header */}
       <HeroBrandCarousel/>
       <div className="bg-muted/50 rounded-lg p-8 mb-12">

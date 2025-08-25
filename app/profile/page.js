@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation"
 import { Button } from "../../components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card"
 import { useUser } from "../../contexts/user-context"
-import { LogOut, Mail, UserIcon } from "lucide-react"
+import { LogOut, Mail, UserIcon, Phone } from "lucide-react"
+import { CheckIcon } from "@phosphor-icons/react"
 
 export default function ProfilePage() {
   const { user, isAuthenticated, logout } = useUser()
@@ -53,7 +54,9 @@ export default function ProfilePage() {
                 <UserIcon className="w-5 h-5 text-gray-600" />
                 <div>
                   <p className="text-sm text-gray-600">Name</p>
-                  <p className="font-medium">{user.name}</p>
+                  <p className="font-medium flex items-center gap-2">
+                    {user.name}
+                  </p>
                 </div>
               </div>
 
@@ -61,7 +64,25 @@ export default function ProfilePage() {
                 <Mail className="w-5 h-5 text-gray-600" />
                 <div>
                   <p className="text-sm text-gray-600">Email</p>
-                  <p className="font-medium">{user.email}</p>
+                  <p className="font-medium flex items-center gap-2">
+                    {user.email || "Email not verified"}
+                    {user.emailVerified && (
+                      <span title="Email verified" className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-blue-500 text-white"><CheckIcon weight="bold" size={12} /></span>
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg">
+                <Phone className="w-5 h-5 text-gray-600" />
+                <div>
+                  <p className="text-sm text-gray-600">Phone</p>
+                  <p className="font-medium flex items-center gap-2">{user.phone}
+                  {user.phoneVerified && (
+                      <span title="Email verified" className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-blue-500 text-white"><CheckIcon weight="bold" size={12} /></span>
+                    )}
+                  </p>
+                  
                 </div>
               </div>
             </div>

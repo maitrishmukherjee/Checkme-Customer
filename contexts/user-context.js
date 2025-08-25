@@ -12,18 +12,21 @@ const userReducer = (state, action) => {
         ...state,
         user: action.payload,
         isAuthenticated: true,
+        accessToken: localStorage.getItem("access_token") || "",
       }
     case "LOGOUT":
       return {
         ...state,
         user: null,
         isAuthenticated: false,
+        accessToken: "",
       }
     case "LOAD_USER":
       return {
         ...state,
         user: action.payload,
         isAuthenticated: !!action.payload,
+        accessToken: localStorage.getItem("access_token") || "",
       }
     default:
       return state
@@ -34,13 +37,18 @@ export function UserProvider({ children }) {
   const [state, dispatch] = useReducer(userReducer, {
     user: null,
     isAuthenticated: false,
+    accessToken: "",
   })
   const { showAlert } = useAlert()
 
   useEffect(() => {
     const savedUser = localStorage.getItem("user")
+    const savedToken = localStorage.getItem("access_token")
     if (savedUser) {
       dispatch({ type: "LOAD_USER", payload: JSON.parse(savedUser) })
+    }
+    if (savedToken) {
+      // token will be attached by axios interceptor
     }
   }, [])
 
@@ -69,6 +77,7 @@ export function UserProvider({ children }) {
       value={{
         user: state.user,
         isAuthenticated: state.isAuthenticated,
+        accessToken: state.accessToken,
         login,
         logout,
       }}
