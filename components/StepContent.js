@@ -36,6 +36,7 @@ export default function StepContent({
   fetchAvailableSlots,
   canContinue,
   handleContinue,
+  product,
 }) {
   // Handle date change for virtual demo
   const handleDateChange = (date) => {
@@ -263,7 +264,28 @@ export default function StepContent({
                   <div className="space-y-2">
                     <div className="flex justify-between">
                       <span className="text-gray-600">Product:</span>
-                      <span className="font-medium">Demo Product</span>
+                      <span className="font-medium">{product?.name || "Loading..."}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Brand:</span>
+                      <span className="font-medium">{product?.brandName || "Loading..."}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Price:</span>
+                      <span className="font-medium">
+                        {product ? (
+                          product.discountedPrice < product.price ? (
+                            <>
+                              <span className="line-through text-gray-500 mr-2">₹{product.price}</span>
+                              <span className="text-green-600">₹{product.discountedPrice}</span>
+                            </>
+                          ) : (
+                            `₹${product.price}`
+                          )
+                        ) : (
+                          "Loading..."
+                        )}
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Status:</span>

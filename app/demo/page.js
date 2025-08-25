@@ -417,6 +417,7 @@ const handleSaveAddress = async (addressData) => {
                     fetchAvailableSlots={fetchAvailableSlots}
                     canContinue={canContinue}
                     handleContinue={handleContinue}
+                    product={product}
                   />
                 </div>
               </div>
@@ -438,7 +439,7 @@ const handleSaveAddress = async (addressData) => {
         {/* Mobile/Tablet Steps Drawer */}
         <Drawer open={showStepsDrawer} onOpenChange={setShowStepsDrawer}>
           <DrawerContent className="px-4">
-            <div className="space-y-2 lg:space-y-6">
+            <div className="space-y-2 lg:space-y-6 overflow-y-auto">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-semibold">Book Demo</h2>
                 <Button 
@@ -486,6 +487,7 @@ const handleSaveAddress = async (addressData) => {
                   fetchAvailableSlots={fetchAvailableSlots}
                   canContinue={canContinue}
                   handleContinue={handleContinue}
+                  product={product}
                 />
               </div>
             </div>

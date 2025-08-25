@@ -77,14 +77,14 @@ className="w-auto h-8 rounded-full"
           </p> */}
         </div>
         <div className="flex gap-2 flex-wrap">
-          <Link href={`/demo?product=${product.id}`} className="flex-1">
+          <Link href={`/demo?product=${product.id}&type=virtual`} className="flex-1">
             <Button className="w-full">
               <PresentationIcon size={20} className="mr-2" />
               Book virtual demo
             </Button>
           </Link>
           {showDemo && (
-            <Link href={`/demo?product=${product.id}`} className="flex-1">
+            <Link href={`/demo?product=${product.id}&type=physical`} className="flex-1">
               <Button className="w-full">
                 <GarageIcon className="mr-2" size={20} />
                 Book physical demo

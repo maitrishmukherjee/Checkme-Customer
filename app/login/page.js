@@ -9,7 +9,11 @@ import { Button } from "../../components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card"
 import { useUser } from "../../contexts/user-context"
 import { useAlert } from "../../contexts/alert-context"
-
+import {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSlot,
+} from "@/components/ui/input-otp";
 export default function LoginPage() {
   const { login, isAuthenticated } = useUser()
   const { showAlert } = useAlert()
@@ -21,6 +25,7 @@ export default function LoginPage() {
   const [step, setStep] = useState("enter")
   const [sending, setSending] = useState(false)
   const [verifying, setVerifying] = useState(false)
+  const [otpError, setOtpError] = useState("")
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -50,7 +55,7 @@ export default function LoginPage() {
           if (data && data.access_token) {
             localStorage.setItem("access_token", data.access_token)
           }
-        } catch {}
+        } catch { }
 
         login(userData)
         router.push("/")
@@ -91,6 +96,13 @@ export default function LoginPage() {
       showAlert("Enter the OTP", "error")
       return
     }
+    
+    // Simple OTP validation - only accept 123456
+    if (otp !== "123456") {
+      setOtpError("Invalid OTP. Please enter 123456")
+      return
+    }
+    
     setVerifying(true)
     try {
       const { data } = await validateLoginOtp({ mobileno: phone, otp, name: name || "" })
@@ -131,7 +143,7 @@ export default function LoginPage() {
             gender: v?.gender || "",
           }
         }
-      } catch {}
+      } catch { }
 
       login(userData)
       router.push("/")
@@ -175,14 +187,28 @@ export default function LoginPage() {
             {step === "verify" && (
               <div className="space-y-3">
                 <label className="block text-sm font-medium">Enter OTP</label>
-                <input
-                  type="text"
-                  className="w-full h-10 px-3 rounded-md border bg-background"
-                  placeholder="6-digit OTP"
+                <InputOTP 
+                  maxLength={6}
                   value={otp}
-                  onChange={(e) => setOtp(e.target.value)}
+                  onChange={(value) => {
+                    setOtp(value)
+                    setOtpError("") // Clear error when OTP changes
+                  }}
                   disabled={verifying}
-                />
+                  containerClassName="w-full"
+                >
+                  <InputOTPGroup className="w-full justify-between">
+                    <InputOTPSlot index={0} className="flex-1 h-12" />
+                    <InputOTPSlot index={1} className="flex-1 h-12" />
+                    <InputOTPSlot index={2} className="flex-1 h-12" />
+                    <InputOTPSlot index={3} className="flex-1 h-12" />
+                    <InputOTPSlot index={4} className="flex-1 h-12" />
+                    <InputOTPSlot index={5} className="flex-1 h-12" />
+                  </InputOTPGroup>
+                </InputOTP>
+                {otpError && (
+                  <p className="text-sm text-red-600 mt-1">{otpError}</p>
+                )}
                 <label className="block text-sm font-medium">Your Name</label>
                 <input
                   type="text"
